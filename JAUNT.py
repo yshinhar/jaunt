@@ -4,6 +4,14 @@ import winsound
 import turtle as a
 import okan_module as mod
 
+import face_recognition
+import cv2
+from collections import Counter
+import pickle
+from pathlib import Path
+
+
+DEFAULT_ENCODINGS_PATH = Path("ai_models/encodings.pkl")
 freq = 2500
 dur = 500
 
@@ -19,12 +27,69 @@ def clear():
     a.goto(-500,500)
     a.end_fill()
     a.penup()
-        
-not_again = 0
-if not_again ==0:
-    print("hi there, im Jank And Useless Nity Tools, or in short JAUNT :)")
-    print("if you need anything, just say what you want and i get it for you :)")
-    not_again += 1
+
+def _recognize_face(unknown_encoding, loaded_encodings):
+    boolean_matches = face_recognition.compare_faces(
+        loaded_encodings["encodings"], unknown_encoding, tolerance=0.5
+    )
+    votes = Counter(
+        name
+        for match, name in zip(boolean_matches, loaded_encodings["names"])
+        if match
+    )    
+    if votes:
+        return votes.most_common(1)[0][0]
+
+def test_from_stream(model: str = "hog", encodings_location: Path = DEFAULT_ENCODINGS_PATH):
+    with encodings_location.open(mode="rb") as f:
+        loaded_encodings = pickle.load(f)
+    cap = cv2.VideoCapture(0)
+
+    
+    if not cap.isOpened():
+        raise IOError("Cannot open webcam")
+
+    not_again = 0
+    if not_again ==0:
+        print("hi there, im Jank And Useless Nity Tools, or in short JAUNT ;)")
+        print("if you need anything, just say what you want and i will do it :)")
+        not_again += 1
+    while True:
+        okan_found = False
+        ret, frame = cap.read()
+        frame = cv2.resize(frame, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
+        cv2.imshow('Input', frame)
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        face_locations = face_recognition.face_locations(rgb, model=model)
+        encodings = face_recognition.face_encodings(rgb, face_locations)
+
+        for bounding_box, unknown_encoding in zip(face_locations, encodings):
+            name = _recognize_face(unknown_encoding, loaded_encodings)
+            if not name:
+                name = "Not Okan"
+            else:
+                okan_found = True
+
+            top, right, bottom, left = bounding_box
+            cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
+            y = top - 15 if top - 15 > 15 else top + 15
+            cv2.putText(frame, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
+        cv2.imshow('Input', frame)
+        c = cv2.waitKey(1)
+        if okan_found:
+            print("okan found")
+            break
+        elif c == 27:
+            print("only okan can use me, and you are not okan")
+            exit(1)
+
+    cap.release()
+
+print("searching for okan")
+test_from_stream()
+
+
 while True:
     winsound.Beep(freq, 200)
     print("\n\n\n\n\n\n\n\n\n\n\n                 JAUNT")
